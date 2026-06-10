@@ -1,0 +1,31 @@
+query_id,query_text,intent_type
+q01,what are the best running shoes for beginners,category
+q02,what running shoes should I buy in 2026,category
+q03,what are the most comfortable running shoes,category
+q04,best everyday trainer for running,category
+q05,what are the best cushioned running shoes,category
+q06,most popular running shoe brands right now,category
+q07,best running shoes for flat feet,problem
+q08,what running shoes are good for knee pain,problem
+q09,best running shoes for overpronation,problem
+q10,running shoes for people with wide feet,problem
+q11,best running shoes for bad ankles,problem
+q12,what shoes help with plantar fasciitis for running,problem
+q13,best running shoes for a marathon,use_case
+q14,what are the best shoes for treadmill running,use_case
+q15,best trail running shoes,use_case
+q16,good running shoes for long distance,use_case
+q17,best shoes for sprinting and speed work,use_case
+q18,what running shoes are best for daily commuting runs,use_case
+q19,best running shoes under 100 dollars,budget
+q20,most affordable running shoes that are still good,budget
+q21,best budget running shoes for beginners,budget
+q22,are expensive running shoes worth it or are cheap ones fine,budget
+q23,best value running shoes for the money,budget
+q24,good running shoes under 150,budget
+q25,Hoka vs Brooks for long distance running,comparison
+q26,Nike vs Adidas running shoes which is better,comparison
+q27,ASICS vs New Balance for stability,comparison
+q28,is On Running better than Hoka,comparison
+q29,Saucony vs Brooks for everyday training,comparison
+q30,which brand makes the best running shoes overall,comparison

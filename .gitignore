@@ -1,0 +1,6 @@
+﻿venv/
+__pycache__/
+*.pyc
+.env
+responses.jsonl
+responses_retrieval.jsonl

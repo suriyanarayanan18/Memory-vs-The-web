@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Memory vs the Web: what an AI recommends before and after RAG</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#15181D; --ink2:#33373E; --mut:#565C66;
+  --paper:#F4F5F7; --card:#FFFFFF; --line:#E2E4E8; --line2:#EAECEF;
+  --memory:#8A909B; --retrieval:#4338CA; --retrieval-soft:#EAE9FB;
+  --gain:#137333; --loss:#C5221F; --accent:#FF5A1F; --accent-text:#C2410C;
+  --mono:'Inter',system-ui,sans-serif; --body:'Source Serif 4',Georgia,serif; --disp:'Fraunces',Georgia,serif;
+}
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.55;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;}
+a{color:inherit;text-decoration:none;}
+.wrap{max-width:1080px;margin:0 auto;padding:0 26px;}
+
+/* nav */
+nav{position:sticky;top:0;z-index:50;background:rgba(244,245,247,.85);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);}
+.nav-in{max-width:1080px;margin:0 auto;padding:14px 26px;display:flex;align-items:center;gap:22px;}
+.brandmark{display:flex;align-items:center;gap:11px;font-family:var(--disp);font-weight:600;font-size:1rem;letter-spacing:-.01em;color:var(--ink);}
+.nav-links{display:flex;gap:22px;margin-left:auto;flex-wrap:wrap;}
+.nav-links a{font-size:.88rem;color:var(--ink2);font-weight:500;transition:color .2s;}
+.nav-links a:hover,.nav-links a.active{color:var(--accent-text);}
+
+/* hero */
+.hero{padding:78px 0 36px;}
+.eyebrow{font-family:var(--mono);font-size:.74rem;letter-spacing:.22em;text-transform:uppercase;color:var(--accent-text);font-weight:500;margin-bottom:20px;}
+.hero h1{font-family:var(--disp);font-weight:600;font-size:clamp(2.2rem,5.2vw,3.7rem);line-height:1.06;letter-spacing:-.012em;margin:0 0 20px;color:var(--ink);}
+.hero p{font-size:1.12rem;color:var(--ink2);max-width:700px;line-height:1.62;margin:0;}
+.specs{display:flex;gap:9px;flex-wrap:wrap;margin-top:28px;}
+.spec{font-family:var(--mono);font-size:.76rem;color:#fff;border:1px solid var(--accent);border-radius:999px;padding:6px 14px;background:var(--accent);font-weight:500;}
+.lane{height:3px;background:linear-gradient(90deg,var(--memory) 0%,var(--memory) 44%,var(--retrieval) 56%,var(--retrieval) 100%);border-radius:3px;margin:34px 0 0;position:relative;overflow:hidden;}
+.lane::after{content:"";position:absolute;top:0;left:-40%;width:40%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.75),transparent);animation:sweep 3.6s ease-in-out infinite;}
+@keyframes sweep{0%{left:-40%;}60%,100%{left:120%;}}
+
+/* kpis */
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:15px;margin:36px 0 6px;}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:19px;box-shadow:0 1px 2px rgba(20,22,26,.05);transition:transform .18s,box-shadow .18s;}
+.kpi:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(20,22,26,.08);}
+.kpi .lab{font-size:.82rem;color:var(--mut);font-weight:500;}
+.kpi .val{font-family:var(--disp);font-size:2.1rem;font-weight:600;margin:6px 0 5px;line-height:1.1;word-break:break-word;color:var(--ink);}
+.kpi .note{font-size:.82rem;color:var(--ink2);line-height:1.4;}
+
+/* filter bar */
+.filterbar{border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--card);margin-top:30px;}
+.filter{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:16px 26px;max-width:1080px;margin:0 auto;}
+.filter .flab{font-family:var(--mono);font-size:.76rem;text-transform:uppercase;letter-spacing:.16em;color:var(--mut);margin-right:6px;}
+.pill{font-size:.85rem;font-weight:500;border:1px solid var(--line);background:var(--paper);color:var(--ink2);border-radius:999px;padding:7px 15px;cursor:pointer;transition:all .18s;user-select:none;text-transform:capitalize;}
+.pill:hover{border-color:var(--mut);}
+.pill.on{background:var(--ink);color:#fff;border-color:var(--ink);}
+
+/* sections */
+section{padding:62px 0 18px;opacity:0;transform:translateY(20px);transition:opacity .7s ease,transform .7s ease;}
+section.in{opacity:1;transform:none;}
+section + section{border-top:1px solid var(--line);}
+.sec-eyebrow{font-family:var(--mono);font-size:.92rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent-text);margin-bottom:16px;font-weight:500;display:flex;align-items:baseline;gap:12px;}
+.sec-eyebrow .num{font-family:var(--disp);font-size:1.7rem;font-weight:700;letter-spacing:-.01em;color:var(--accent);}
+h2{font-family:var(--disp);font-weight:600;font-size:1.8rem;letter-spacing:-.018em;margin:0 0 12px;color:var(--ink);}
+.desc{color:var(--ink2);font-size:1.05rem;line-height:1.62;max-width:700px;margin:0 0 30px;}
+.legend{display:flex;gap:20px;margin-bottom:22px;font-size:.88rem;color:var(--ink2);flex-wrap:wrap;}
+.legend span{display:inline-flex;align-items:center;gap:8px;}
+.dot{width:12px;height:12px;border-radius:50%;display:inline-block;}
+
+/* shift chart */
+.shift-row{display:grid;grid-template-columns:128px 1fr 56px;align-items:center;gap:14px;height:38px;}
+.shift-name{font-size:.92rem;color:var(--ink);text-align:right;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.track{position:relative;height:100%;}
+.track .axis{position:absolute;top:50%;left:0;right:0;height:1px;background:var(--line2);}
+.track .conn{position:absolute;top:50%;height:3px;background:#CDD1D7;transform:translateY(-50%);width:0;border-radius:3px;transition:width .9s cubic-bezier(.22,1,.36,1),left .9s cubic-bezier(.22,1,.36,1);}
+.track .pt{position:absolute;top:50%;width:14px;height:14px;border-radius:50%;transform:translate(-50%,-50%);transition:left .9s cubic-bezier(.22,1,.36,1);border:2px solid var(--card);box-shadow:0 1px 2px rgba(0,0,0,.12);}
+.pt.mem{background:var(--memory);} .pt.ret{background:var(--retrieval);z-index:2;}
+.shift-gap{font-family:var(--mono);font-size:.84rem;text-align:right;font-weight:500;}
+
+/* horizontal bars */
+.bars{display:flex;flex-direction:column;gap:11px;}
+.barrow{display:grid;grid-template-columns:170px 1fr 44px;align-items:center;gap:14px;}
+.barrow .nm{font-size:.88rem;text-align:right;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink);}
+.bartrack{background:var(--line2);border-radius:6px;height:18px;overflow:hidden;}
+.barfill{height:100%;width:0;border-radius:6px;transition:width .9s cubic-bezier(.22,1,.36,1);}
+.barval{font-family:var(--mono);font-size:.84rem;color:var(--ink2);text-align:right;font-weight:500;}
+
+/* compare bars (first visual) */
+.cbar-row{display:grid;grid-template-columns:128px 1fr 60px;align-items:center;gap:16px;margin-bottom:18px;}
+.cbar-name{font-size:.94rem;text-align:right;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.cbar-mid{display:flex;flex-direction:column;gap:7px;}
+.cbar-line{display:flex;align-items:center;gap:11px;}
+.cbar-track{flex:1;background:var(--line2);border-radius:6px;height:14px;overflow:hidden;}
+.cbar-fill{height:100%;width:0;border-radius:6px;transition:width .9s cubic-bezier(.22,1,.36,1);}
+.cbar-fill.mem{background:var(--memory);} .cbar-fill.web{background:var(--retrieval);}
+.cbar-num{font-family:var(--mono);font-size:.8rem;color:var(--ink2);width:40px;text-align:right;font-weight:500;}
+.cbar-delta{font-family:var(--mono);font-size:.95rem;font-weight:500;text-align:right;}
+
+/* grouped sov */
+.sov-row{display:grid;grid-template-columns:128px 1fr 96px;align-items:center;gap:14px;margin-bottom:15px;}
+.sov-name{font-size:.92rem;text-align:right;font-weight:600;color:var(--ink);}
+.sov-pair{display:flex;flex-direction:column;gap:5px;}
+.sov-bar{height:12px;width:0;border-radius:6px;transition:width .9s cubic-bezier(.22,1,.36,1);}
+.sov-val{font-family:var(--mono);font-size:.78rem;color:var(--mut);display:flex;flex-direction:column;gap:5px;line-height:12px;}
+
+/* diverging gap */
+.gap-row{display:grid;grid-template-columns:128px 1fr;align-items:center;gap:14px;height:28px;}
+.gap-name{font-size:.92rem;text-align:right;font-weight:600;color:var(--ink);}
+.gap-area{position:relative;height:18px;}
+.gap-area .mid{position:absolute;top:-5px;bottom:-5px;left:50%;width:1px;background:var(--line);}
+.gap-fill{position:absolute;top:0;height:18px;width:0;border-radius:6px;transition:width .9s cubic-bezier(.22,1,.36,1);}
+.gap-lab{position:absolute;top:0;font-family:var(--mono);font-size:.78rem;line-height:18px;font-weight:500;}
+
+/* heatmap */
+.heat{display:grid;gap:5px;margin-top:8px;overflow-x:auto;}
+.heat .hc{font-family:var(--mono);font-size:.74rem;color:var(--mut);text-align:center;padding-bottom:6px;text-transform:capitalize;}
+.heat .hr{font-size:.88rem;text-align:right;padding-right:12px;font-weight:600;white-space:nowrap;color:var(--ink);}
+.cell{height:32px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:.76rem;font-weight:500;transition:transform .15s;}
+.cell:hover{transform:scale(1.07);}
+
+/* universe + factors */
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:15px;margin-top:20px;}
+.uni{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:20px;}
+.uni .n{font-family:var(--disp);font-size:2.2rem;font-weight:600;color:var(--ink);}
+.uni .l{font-size:.86rem;color:var(--mut);font-weight:600;margin-top:3px;}
+.uni .b{font-size:.9rem;color:var(--ink2);margin-top:10px;line-height:1.45;}
+.pipe{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:24px;margin-bottom:20px;}
+.pipe .step{display:flex;gap:16px;margin-bottom:18px;}
+.pipe .step:last-child{margin-bottom:0;}
+.pipe .num{font-family:var(--mono);color:var(--accent-text);font-weight:500;font-size:1rem;flex-shrink:0;width:28px;}
+.pipe .step b{font-family:var(--disp);font-size:1.02rem;}
+.pipe .step p{margin:4px 0 0;color:var(--ink2);font-size:.95rem;line-height:1.55;}
+.factor{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--retrieval);border-radius:11px;padding:18px;}
+.factor h4{font-family:var(--disp);font-size:1rem;margin:0 0 6px;color:var(--ink);}
+.factor p{margin:0;color:var(--ink2);font-size:.9rem;line-height:1.5;}
+.callout{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:11px;padding:18px 20px;margin-top:20px;font-size:.96rem;color:var(--ink2);line-height:1.55;}
+
+/* questions */
+.qgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:15px;margin-top:8px;}
+.qcard{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;}
+.qtype{font-family:var(--mono);font-size:.76rem;letter-spacing:.12em;text-transform:uppercase;color:var(--accent-text);margin-bottom:10px;font-weight:500;}
+.qcard ol{margin:0;padding-left:18px;}
+.qcard li{font-size:.92rem;color:var(--ink2);line-height:1.5;margin-bottom:7px;}
+
+/* method */
+.method li{margin-bottom:11px;color:var(--ink2);line-height:1.55;font-size:1rem;}
+.method b{color:var(--ink);}
+
+@media(max-width:720px){
+  body{font-size:16px;}
+  .kpis{grid-template-columns:repeat(2,1fr);}
+  .grid3{grid-template-columns:1fr;}
+  .nav-links{display:none;}
+  .shift-row{grid-template-columns:98px 1fr 44px;}
+  .barrow{grid-template-columns:120px 1fr 40px;}
+  .sov-row{grid-template-columns:98px 1fr 64px;}
+  .gap-row{grid-template-columns:98px 1fr;}
+}
+@media(prefers-reduced-motion:reduce){
+  *{transition:none!important;animation:none!important;}
+  section{opacity:1;transform:none;}
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-in">
+    <div class="brandmark">
+      <svg width="40" height="14" viewBox="0 0 40 14" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><line x1="9" y1="7" x2="31" y2="7" stroke="#CDD1D7" stroke-width="2.4"/><circle cx="9" cy="7" r="5" fill="#8A909B"/><circle cx="31" cy="7" r="5" fill="#4338CA"/></svg>
+      <span>Memory vs the Web</span>
+    </div>
+    <div class="nav-links">
+      <a href="#shift">The shift</a>
+      <a href="#brands">Brands</a>
+      <a href="#sources">Sources</a>
+      <a href="#how">How AI picks</a>
+      <a href="#questions">Questions</a>
+      <a href="#method">Method</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero wrap">
+  <div class="eyebrow">Answer Engine Optimization &middot; A Retrieval Experiment</div>
+  <h1>What an AI recommends from memory<br>is not what it recommends from the web.</h1>
+  <p>Thirty real running shoe questions, each asked two ways: once with the model answering from training memory, once with live web search on. The brands move, new ones appear, and the citations cluster on a handful of sites. That gap is what Answer Engine Optimization is really about.</p>
+  <div class="specs">
+    <span class="spec">30 questions</span>
+    <span class="spec">60 answers</span>
+    <span class="spec">2 modes</span>
+    <span class="spec">1 engine</span>
+    <span class="spec">5 question types</span>
+  </div>
+  <div class="lane"></div>
+  <div class="kpis" id="kpis"></div>
+</header>
+
+<div class="filterbar">
+  <div class="filter" id="filter">
+    <span class="flab">Filter by question type</span>
+  </div>
+</div>
+
+<section id="shift" class="wrap">
+  <div class="sec-eyebrow"><span class="num">01</span> The signature finding</div>
+  <h2>The shift: memory to web</h2>
+  <p class="desc">For each brand, the grey bar is how often it came up when the model answered from memory, and the indigo bar is how often it came up with web search on. The number on the right is the change.</p>
+  <div class="legend">
+    <span><i class="dot" style="background:var(--memory)"></i>Answered from memory</span>
+    <span><i class="dot" style="background:var(--retrieval)"></i>Answered with web search</span>
+  </div>
+  <div id="shiftChart"></div>
+  <h2 style="margin-top:48px">Who gains, who gets exposed</h2>
+  <p class="desc">Green brands earn more visibility when AI checks the web. Red brands are propped up by the model's memory and fade once current reviews are consulted.</p>
+  <div id="gapChart"></div>
+</section>
+
+<section id="brands" class="wrap">
+  <div class="sec-eyebrow"><span class="num">02</span> Brand detail</div>
+  <h2>Where each brand wins</h2>
+  <p class="desc">Web-search share of voice by question type. Darker means the brand owns more of that kind of question.</p>
+  <div id="heatChart" class="heat"></div>
+  <h2 style="margin-top:48px">The brand universe widens with search</h2>
+  <p class="desc">Live search surfaces brands the model never volunteers from memory.</p>
+  <div class="grid3" id="universe"></div>
+</section>
+
+<section id="sources" class="wrap">
+  <div class="sec-eyebrow"><span class="num">03</span> Source intelligence</div>
+  <h2>Where AI visibility actually comes from</h2>
+  <p class="desc">Across every searched answer, these are the sites the model cited most. Winning AI visibility means earning a place on this short list, not the whole web.</p>
+  <div id="domChart" class="bars"></div>
+  <div class="grid3" id="srcKpis" style="grid-template-columns:repeat(2,1fr)"></div>
+</section>
+
+<section id="how" class="wrap">
+  <div class="sec-eyebrow"><span class="num">04</span> The mechanism</div>
+  <h2>How an AI decides which sites to use</h2>
+  <p class="desc">There is no published algorithm. What follows is the working understanding from citation studies and from how AI search is built, and it lines up with the patterns in this data.</p>
+  <div class="pipe">
+    <div class="step"><div class="num">01</div><div><b>Retrieve.</b><p>The model runs one or more searches and pulls a pool of candidate pages. It is not reading the whole internet, only what those searches surface.</p></div></div>
+    <div class="step"><div class="num">02</div><div><b>Score and cite.</b><p>A separate step ranks passages from that pool for relevance and trust, and only the strongest become citations. The gap between what was retrieved and what was cited is this scoring step made visible, and this study captured both.</p></div></div>
+  </div>
+  <div class="grid3" id="factors"></div>
+  <div class="callout"><b>Takeaway.</b> The selection logic is opaque and differs by engine, which is exactly why a measurement project like this exists. You cannot read the rules, so you probe the outputs and infer the patterns.</div>
+</section>
+
+<section id="questions" class="wrap">
+  <div class="sec-eyebrow"><span class="num">05</span> The instrument</div>
+  <h2>The 30 questions behind the data</h2>
+  <p class="desc">Every question was a real thing a shopper would ask, spread across five intent types. The plain queries name no brand on purpose, so the model has to volunteer brands itself.</p>
+  <div class="qgrid"><div class='qcard'><div class='qtype'>category</div><ol><li>what are the best running shoes for beginners</li><li>what running shoes should I buy in 2026</li><li>what are the most comfortable running shoes</li><li>best everyday trainer for running</li><li>what are the best cushioned running shoes</li><li>most popular running shoe brands right now</li></ol></div><div class='qcard'><div class='qtype'>problem</div><ol><li>best running shoes for flat feet</li><li>what running shoes are good for knee pain</li><li>best running shoes for overpronation</li><li>running shoes for people with wide feet</li><li>best running shoes for bad ankles</li><li>what shoes help with plantar fasciitis for running</li></ol></div><div class='qcard'><div class='qtype'>use case</div><ol><li>best running shoes for a marathon</li><li>what are the best shoes for treadmill running</li><li>best trail running shoes</li><li>good running shoes for long distance</li><li>best shoes for sprinting and speed work</li><li>what running shoes are best for daily commuting runs</li></ol></div><div class='qcard'><div class='qtype'>budget</div><ol><li>best running shoes under 100 dollars</li><li>most affordable running shoes that are still good</li><li>best budget running shoes for beginners</li><li>are expensive running shoes worth it or are cheap ones fine</li><li>best value running shoes for the money</li><li>good running shoes under 150</li></ol></div><div class='qcard'><div class='qtype'>comparison</div><ol><li>Hoka vs Brooks for long distance running</li><li>Nike vs Adidas running shoes which is better</li><li>ASICS vs New Balance for stability</li><li>is On Running better than Hoka</li><li>Saucony vs Brooks for everyday training</li><li>which brand makes the best running shoes overall</li></ol></div></div>
+</section>
+
+<section id="method" class="wrap">
+  <div class="sec-eyebrow"><span class="num">06</span> Method</div>
+  <h2>Method and limitations</h2>
+  <ul class="method">
+    <li><b>Questions.</b> 30 buyer-intent queries across five types: category, problem, use case, budget, comparison.</li>
+    <li><b>Memory run.</b> The model answered with no web access, reflecting its training data.</li>
+    <li><b>Retrieval run.</b> The same questions with web search on, capturing live citations.</li>
+    <li><b>Extraction.</b> Brand mentions were pulled from each answer by a model; cited URLs were reduced to unique domains in code.</li>
+    <li><b>Share of voice.</b> The percent of questions in a mode whose answer mentioned a given brand.</li>
+    <li><b>Limits.</b> Single run per question, so brands at very low share are noise, not trends. One engine, so results do not transfer across engines. A snapshot in time, since web results move.</li>
+  </ul>
+</section>
+
+
+<script>
+const RAW = [{"query_id":"q01","intent_type":"category","mode":"memory","brands":["ASICS","Brooks","Hoka","New Balance","Saucony"],"cited_domains":[]},{"query_id":"q02","intent_type":"category","mode":"memory","brands":["ASICS","Adidas","Brooks","Hoka","New Balance","Nike"],"cited_domains":[]},{"query_id":"q03","intent_type":"category","mode":"memory","brands":["ASICS","Brooks","Hoka","New Balance","Nike","Saucony"],"cited_domains":[]},{"query_id":"q04","intent_type":"category","mode":"memory","brands":["ASICS","Brooks","Hoka","New Balance","Nike","Saucony"],"cited_domains":[]},{"query_id":"q05","intent_type":"category","mode":"memory","brands":["ASICS","Brooks","Hoka","New Balance","Nike","Saucony"],"cited_domains":[]},{"query_id":"q06","intent_type":"category","mode":"memory","brands":["ASICS","Adidas","Altra","Brooks","Hoka","New Balance","Nike","On","Salomon","Saucony"],"cited_domains":[]},{"query_id":"q07","intent_type":"problem","mode":"memory","brands":["ASICS","Brooks","Hoka","New Balance","Saucony"],"cited_domains":[]},{"query_id":"q08","intent_type":"problem","mode":"memory","brands":["ASICS","Brooks","Hoka","New Balance","Saucony"],"cited_domains":[]},{"query_id":"q09","intent_type":"problem","mode":"memory","brands":["ASICS","Brooks","New Balance","Saucony"],"cited_domains":[]},{"query_id":"q10","intent_type":"problem","mode":"memory","brands":["ASICS","Altra","Brooks","Hoka","New Balance","Saucony"],"cited_domains":[]},{"query_id":"q11","intent_type":"problem","mode":"memory","brands":["Asics","Brooks","Hoka","New Balance"],"cited_domains":[]},{"query_id":"q12","intent_type":"problem","mode":"memory","brands":["ASICS","Brooks","Hoka","New Balance","Saucony"],"cited_domains":[]},{"query_id":"q13","intent_type":"use_case","mode":"memory","brands":["ASICS","Adidas","Brooks","Hoka","New Balance","Nike","Saucony"],"cited_domains":[]},{"query_id":"q14","intent_type":"use_case","mode":"memory","brands":["ASICS","Brooks","Hoka","New Balance","Nike","Saucony"],"cited_domains":[]},{"query_id":"q15","intent_type":"use_case","mode":"memory","brands":["Altra","Brooks","Hoka","La Sportiva","Merrell","New Balance","Nike","Salomon"],"cited_domains":[]},{"query_id":"q16","intent_type":"use_case","mode":"memory","brands":["ASICS","Adidas","Brooks","Hoka","New Balance","Nike","Saucony"],"cited_domains":[]},{"query_id":"q17","intent_type":"use_case","mode":"memory","brands":["Adidas","New Balance","Nike","Puma"],"cited_domains":[]},{"query_id":"q18","intent_type":"use_case","mode":"memory","brands":["ASICS","Brooks","Hoka","New Balance","Nike","Salomon","Saucony"],"cited_domains":[]},{"query_id":"q19","intent_type":"budget","mode":"memory","brands":["ASICS","Adidas","Brooks","New Balance","Nike","Saucony"],"cited_domains":[]},{"query_id":"q20","intent_type":"budget","mode":"memory","brands":["ASICS","Adidas","Brooks","New Balance","Nike","Saucony"],"cited_domains":[]},{"query_id":"q21","intent_type":"budget","mode":"memory","brands":["ASICS","Brooks","New Balance","Saucony"],"cited_domains":[]},{"query_id":"q22","intent_type":"budget","mode":"memory","brands":["Adidas","Nike"],"cited_domains":[]},{"query_id":"q23","intent_type":"budget","mode":"memory","brands":["ASICS","Brooks","New Balance","Nike","Saucony"],"cited_domains":[]},{"query_id":"q24","intent_type":"budget","mode":"memory","brands":["ASICS","Brooks","New Balance","Saucony"],"cited_domains":[]},{"query_id":"q25","intent_type":"comparison","mode":"memory","brands":["Brooks","Hoka"],"cited_domains":[]},{"query_id":"q26","intent_type":"comparison","mode":"memory","brands":["Adidas","Nike"],"cited_domains":[]},{"query_id":"q27","intent_type":"comparison","mode":"memory","brands":["ASICS","New Balance"],"cited_domains":[]},{"query_id":"q28","intent_type":"comparison","mode":"memory","brands":["Hoka","On"],"cited_domains":[]},{"query_id":"q29","intent_type":"comparison","mode":"memory","brands":["Brooks","Saucony"],"cited_domains":[]},{"query_id":"q30","intent_type":"comparison","mode":"memory","brands":["ASICS","Brooks","Hoka","New Balance","Nike","On","Saucony"],"cited_domains":[]},{"query_id":"q01","intent_type":"category","mode":"retrieval","brands":["ASICS","Hoka","Kiprun","Mizuno","Saucony"],"cited_domains":["fleetfeet.com","runrepeat.com","theruntesters.com"]},{"query_id":"q02","intent_type":"category","mode":"retrieval","brands":["ASICS","Adidas","Brooks","HOKA","New Balance","Nike","PUMA","Saucony"],"cited_domains":["outdoorgearlab.com","si.com","theruntesters.com"]},{"query_id":"q03","intent_type":"category","mode":"retrieval","brands":["ASICS","Adidas","Brooks","Hoka","Nike"],"cited_domains":["fleetfeet.com","outdoorgearlab.com","runrepeat.com","si.com","stillirun.org","theruntesters.com"]},{"query_id":"q04","intent_type":"category","mode":"retrieval","brands":["ASICS","Adidas","Brooks","New Balance","Nike","Saucony"],"cited_domains":["fleetfeet.com","outdoorgearlab.com","runningwarehouse.com","runrepeat.com","runweekly.com"]},{"query_id":"q05","intent_type":"category","mode":"retrieval","brands":["ASICS","Hoka","Mizuno","New Balance","Nike","Saucony"],"cited_domains":["alltricks.com","marathonsports.com","runrepeat.com","supwell.com","theruntesters.com"]},{"query_id":"q06","intent_type":"category","mode":"retrieval","brands":["ASICS","Adidas","Brooks","Hoka","New Balance","Nike","On","Puma","Saucony"],"cited_domains":["fleetfeet.com","supwell.com","theruntesters.com","urbanstaroma.com"]},{"query_id":"q07","intent_type":"problem","mode":"retrieval","brands":["ASICS","Adidas","Brooks","Hoka","Saucony"],"cited_domains":["flawlessshoereviews.com","marathonsports.com","runna.com","runrepeat.com","runtothefinish.com","swift-running.com"]},{"query_id":"q08","intent_type":"problem","mode":"retrieval","brands":["Adidas","Brooks","Hoka","New Balance","Nike"],"cited_domains":["brooksrunning.com","rundreamachieve.com","runforhealthlife.com","runrepeat.com"]},{"query_id":"q09","intent_type":"problem","mode":"retrieval","brands":["ASICS","Brooks","Saucony"],"cited_domains":["aetrex.com","health.yahoo.com","runrepeat.com","rununited.com"]},{"query_id":"q10","intent_type":"problem","mode":"retrieval","brands":["Altra","Brooks","Hoka","New Balance","On","Topo"],"cited_domains":["fleetfeet.com","marathonsports.com","prrunandwalk.com","runrepeat.com"]},{"query_id":"q11","intent_type":"problem","mode":"retrieval","brands":["ASICS","Brooks","Hoka","New Balance","Nike"],"cited_domains":["brooksrunning.com","cnn.com","footankle.com","sneakers4good.com"]},{"query_id":"q12","intent_type":"problem","mode":"retrieval","brands":["ASICS","Brooks","Hoka","Mizuno","Saucony"],"cited_domains":["marathonhandbook.com","michiganfootdoctors.com","runrepeat.com","solereview.com","trailandkale.com"]},{"query_id":"q13","intent_type":"use_case","mode":"retrieval","brands":["ASICS","Adidas","Hoka","Nike"],"cited_domains":["irunfar.com","runrepeat.com","sneakerfreaker.com","solereview.com","theruntesters.com"]},{"query_id":"q14","intent_type":"use_case","mode":"retrieval","brands":["Brooks","Hoka","Mizuno","New Balance","Nike","Saucony"],"cited_domains":["marathonsports.com","runrepeat.com","runtothefinish.com"]},{"query_id":"q15","intent_type":"use_case","mode":"retrieval","brands":["ASICS","Adidas","Hoka","Saucony"],"cited_domains":["adventurealan.com","irunfar.com","runrepeat.com","trailandkale.com"]},{"query_id":"q16","intent_type":"use_case","mode":"retrieval","brands":["ASICS","Adidas","Brooks","Hoka","Mizuno","New Balance","Nike","Saucony"],"cited_domains":["marathonhandbook.com","runrepeat.com","runtothefinish.com","stillirun.org"]},{"query_id":"q17","intent_type":"use_case","mode":"retrieval","brands":["Adidas","Antepes","Nike","Saucony"],"cited_domains":["runrepeat.com","sprintingworkouts.com","trackspikes.co"]},{"query_id":"q18","intent_type":"use_case","mode":"retrieval","brands":["ASICS","Adidas","Brooks","Hoka","Nike","Saucony"],"cited_domains":["marathonhandbook.com","outdoorgearlab.com","runningwarehouse.com","runrepeat.com","runweekly.com","theruntesters.com"]},{"query_id":"q19","intent_type":"budget","mode":"retrieval","brands":["ASICS","Adidas","New Balance","Nike","Saucony"],"cited_domains":["nycmode.com","runrepeat.com","runtothefinish.com","speedbursts.com","tomsguide.com"]},{"query_id":"q20","intent_type":"budget","mode":"retrieval","brands":["ASICS","Adidas","Nike"],"cited_domains":["nycmode.com","outdoorgearlab.com","runrepeat.com","runtothefinish.com"]},{"query_id":"q21","intent_type":"budget","mode":"retrieval","brands":["ASICS","Adidas","Nike","Reebok","Saucony"],"cited_domains":["outdoorgearlab.com","runrepeat.com","theruntesters.com"]},{"query_id":"q22","intent_type":"budget","mode":"retrieval","brands":["Brooks","Hoka"],"cited_domains":["alibaba.com","greatist.com","hmpgloballearningnetwork.com","quora.com","runrepeat.com","shoestation.com"]},{"query_id":"q23","intent_type":"budget","mode":"retrieval","brands":["ASICS","Adidas","Saucony"],"cited_domains":["marathonhandbook.com","outdoorgearlab.com","runrepeat.com","theruntesters.com"]},{"query_id":"q24","intent_type":"budget","mode":"retrieval","brands":["ASICS","Adidas","Brooks","Nike"],"cited_domains":["outdoorgearlab.com","rundreamachieve.com","runrepeat.com","swift-running.com","therunningweek.com","us.my-best.com"]},{"query_id":"q25","intent_type":"comparison","mode":"retrieval","brands":["Brooks","Hoka"],"cited_domains":["fit2run.com","marathonhandbook.com","runbikecalc.com","runtothefinish.com","trailandkale.com"]},{"query_id":"q26","intent_type":"comparison","mode":"retrieval","brands":["Adidas","Nike"],"cited_domains":["bluesky-thinking.com","joinfitgear.com","marathonhandbook.com","rundreamachieve.com","therunningchannel.com","weeviews.com"]},{"query_id":"q27","intent_type":"comparison","mode":"retrieval","brands":["ASICS","Hoka","New Balance"],"cited_domains":["marathonhandbook.com","marathonsports.com"]},{"query_id":"q28","intent_type":"comparison","mode":"retrieval","brands":["Hoka","On"],"cited_domains":["esquiresg.com","hansenshoes.com","marathonhandbook.com","trailandkale.com","weeviews.com"]},{"query_id":"q29","intent_type":"comparison","mode":"retrieval","brands":["ASICS","Brooks","Nike","Saucony"],"cited_domains":["findmyfootwear.com","marathonhandbook.com","rununited.com","weeviews.com"]},{"query_id":"q30","intent_type":"comparison","mode":"retrieval","brands":["ASICS","Adidas","Brooks","Hoka","New Balance","Nike","Saucony"],"cited_domains":["believeintherun.com","fleetfeet.com","outdoorgearlab.com","runrepeat.com","theruntesters.com","urbanstaroma.com"]}];
+const CANON = {"asics":"ASICS","hoka":"Hoka","puma":"Puma","nike":"Nike","adidas":"Adidas","brooks":"Brooks","saucony":"Saucony","new balance":"New Balance","on":"On","altra":"Altra","salomon":"Salomon","merrell":"Merrell","la sportiva":"La Sportiva","mizuno":"Mizuno","topo":"Topo","kiprun":"Kiprun","reebok":"Reebok","antepes":"Antepes"};
+const canon = n => CANON[n.trim().toLowerCase()] || (n.trim().charAt(0).toUpperCase()+n.trim().slice(1));
+const INTENTS = [...new Set(RAW.map(r=>r.intent_type))].sort();
+let active = new Set(INTENTS);
+
+function compute(){
+  const flt = RAW.filter(r=>active.has(r.intent_type));
+  const denom = {memory:1, retrieval:1};
+  ["memory","retrieval"].forEach(m=>{
+    const ids = new Set(flt.filter(r=>r.mode===m).map(r=>r.query_id));
+    denom[m] = Math.max(1, ids.size);
+  });
+  const cnt = {memory:{}, retrieval:{}};
+  flt.forEach(r=>{
+    const seen = new Set();
+    r.brands.forEach(b=>{
+      const cb = canon(b);
+      if(!seen.has(cb)){ seen.add(cb); cnt[r.mode][cb] = (cnt[r.mode][cb]||0)+1; }
+    });
+  });
+  const brands = new Set([...Object.keys(cnt.memory), ...Object.keys(cnt.retrieval)]);
+  const comp = [];
+  brands.forEach(b=>{
+    const mem = (cnt.memory[b]||0)/denom.memory*100;
+    const ret = (cnt.retrieval[b]||0)/denom.retrieval*100;
+    comp.push({brand:b, memory:+mem.toFixed(1), retrieval:+ret.toFixed(1), gap:+(ret-mem).toFixed(1)});
+  });
+  comp.sort((a,b)=>b.retrieval-a.retrieval);
+  const dom = {};
+  flt.filter(r=>r.mode==="retrieval").forEach(r=>r.cited_domains.forEach(d=>dom[d]=(dom[d]||0)+1));
+  const domArr = Object.entries(dom).map(([domain,q])=>({domain,q})).sort((a,b)=>b.q-a.q);
+  return {comp, domArr, denom, flt};
+}
+
+const el = (t,c,h)=>{const e=document.createElement(t); if(c)e.className=c; if(h!==undefined)e.innerHTML=h; return e;};
+const raf = fn => requestAnimationFrame(()=>requestAnimationFrame(fn));
+const gapColor = g => g>0? "var(--gain)": (g<0? "var(--loss)":"var(--mut)");
+
+function countUp(node, target, suffix, signNeg){
+  const dur=900, start=performance.now();
+  function tick(now){
+    const p=Math.min(1,(now-start)/dur);
+    const e=1-Math.pow(1-p,3);
+    const v=Math.round(target*e);
+    node.textContent=(signNeg?"-":"")+v+(suffix||"");
+    if(p<1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+function renderKpis(d){
+  const box=document.getElementById("kpis"); box.innerHTML="";
+  const byGap=[...d.comp].sort((a,b)=>a.gap-b.gap);
+  const loser=byGap[0], gainer=byGap[byGap.length-1];
+  const top=d.domArr[0]||{domain:"n/a",q:0};
+  const cards=[
+    {lab:"Biggest drop with web search", val:Math.round(loser.gap), unit:" pts", note:loser.brand+" is over-recommended from memory"},
+    {lab:"Biggest rise with web search", val:Math.round(gainer.gap), unit:" pts", note:gainer.brand+" surfaces far more once AI searches"},
+    {lab:"Top cited source", text:top.domain, note:"cited in "+top.q+" of "+d.denom.retrieval+" searched answers"},
+    {lab:"Distinct sources cited", val:d.domArr.length, unit:"", note:"but a handful carry most citations"},
+  ];
+  cards.forEach(c=>{
+    const k=el("div","kpi","<div class='lab'>"+c.lab+"</div><div class='val'></div><div class='note'>"+c.note+"</div>");
+    box.appendChild(k);
+    const v=k.querySelector(".val");
+    if(c.text!==undefined){ v.textContent=c.text; }
+    else { const neg=c.val<0; v.textContent=(neg?"-":(c.unit===" pts"?"+":""))+"0"+c.unit; countUpSigned(v, Math.abs(c.val), c.unit, neg); }
+  });
+}
+function countUpSigned(node,target,unit,neg){
+  const dur=900,start=performance.now();
+  function tick(now){const p=Math.min(1,(now-start)/dur);const e=1-Math.pow(1-p,3);const v=Math.round(target*e);
+    node.textContent=(neg?"-":(unit===" pts"?"+":""))+v+unit; if(p<1)requestAnimationFrame(tick);}
+  requestAnimationFrame(tick);
+}
+
+function renderCompare(d){
+  const box=document.getElementById("shiftChart"); box.innerHTML="";
+  d.comp.forEach(r=>{
+    const row=el("div","cbar-row");
+    row.appendChild(el("div","cbar-name",r.brand));
+    const mid=el("div","cbar-mid");
+    function line(cls,val){
+      const ln=el("div","cbar-line");
+      const track=el("div","cbar-track");
+      const fill=el("div","cbar-fill "+cls);
+      track.appendChild(fill);
+      ln.appendChild(track);
+      ln.appendChild(el("div","cbar-num",Math.round(val)+"%"));
+      return {ln,fill};
+    }
+    const m=line("mem",r.memory), w=line("web",r.retrieval);
+    mid.appendChild(m.ln); mid.appendChild(w.ln);
+    row.appendChild(mid);
+    const dl=el("div","cbar-delta",(r.gap>=0?"+":"")+Math.round(r.gap));
+    dl.style.color=gapColor(r.gap);
+    row.appendChild(dl);
+    box.appendChild(row);
+    raf(()=>{ m.fill.style.width=r.memory+"%"; w.fill.style.width=r.retrieval+"%"; });
+  });
+}
+
+function renderGap(d){
+  const box=document.getElementById("gapChart"); box.innerHTML="";
+  const rows=[...d.comp].sort((a,b)=>a.gap-b.gap);
+  const maxAbs=Math.max(1,...rows.map(r=>Math.abs(r.gap)));
+  rows.forEach(r=>{
+    const row=el("div","gap-row");
+    row.appendChild(el("div","gap-name",r.brand));
+    const area=el("div","gap-area");
+    area.appendChild(el("div","mid"));
+    const fill=el("div","gap-fill");
+    const w=Math.abs(r.gap)/maxAbs*48;
+    if(r.gap>=0){ fill.style.left="50%"; fill.style.background="var(--gain)"; }
+    else { fill.style.right="50%"; fill.style.background="var(--loss)"; }
+    area.appendChild(fill);
+    const lab=el("div","gap-lab",(r.gap>=0?"+":"")+Math.round(r.gap));
+    lab.style.color=gapColor(r.gap);
+    if(r.gap>=0){ lab.style.left="calc(50% + "+w+"% + 7px)"; } else { lab.style.right="calc(50% + "+w+"% + 7px)"; }
+    area.appendChild(lab);
+    row.appendChild(area);
+    box.appendChild(row);
+    raf(()=>{ fill.style.width=w+"%"; });
+  });
+}
+
+function renderHeat(d){
+  const box=document.getElementById("heatChart"); box.innerHTML="";
+  const sub=d.flt.filter(r=>r.mode==="retrieval");
+  const totals={};
+  sub.forEach(r=>{ totals[r.intent_type]=(totals[r.intent_type]||0)+1; });
+  const cols=INTENTS.filter(i=>active.has(i));
+  const pair={};
+  sub.forEach(r=>{ const seen=new Set(); r.brands.forEach(b=>{const cb=canon(b); if(!seen.has(cb)){seen.add(cb); pair[cb]=pair[cb]||{}; pair[cb][r.intent_type]=(pair[cb][r.intent_type]||0)+1;}}); });
+  const brands=Object.keys(pair).map(b=>{ let s=0; cols.forEach(c=>s+=(pair[b][c]||0)/Math.max(1,totals[c]||0)); return {b,s}; }).sort((a,b)=>b.s-a.s).map(x=>x.b);
+  box.style.gridTemplateColumns="130px repeat("+cols.length+",1fr)";
+  box.appendChild(el("div","hc",""));
+  cols.forEach(c=>box.appendChild(el("div","hc",c.replace("_"," "))));
+  brands.forEach(b=>{
+    box.appendChild(el("div","hr",b));
+    cols.forEach(c=>{
+      const v=Math.round((pair[b][c]||0)/Math.max(1,totals[c]||0)*100);
+      const cell=el("div","cell", v>0? v:"");
+      const op=0.14+0.86*(v/100);
+      cell.style.background="rgba(67,56,202,"+(v>0?op:0.04)+")";
+      cell.style.color = v>=45? "#fff" : "#2A2A55";
+      cell.title=b+" in "+v+"% of "+c.replace("_"," ")+" questions";
+      box.appendChild(cell);
+    });
+  });
+}
+
+function renderUniverse(d){
+  const box=document.getElementById("universe"); box.innerHTML="";
+  const mem=new Set(d.comp.filter(r=>r.memory>0).map(r=>r.brand));
+  const ret=new Set(d.comp.filter(r=>r.retrieval>0).map(r=>r.brand));
+  const onlyMem=[...mem].filter(b=>!ret.has(b)).sort();
+  const onlyRet=[...ret].filter(b=>!mem.has(b)).sort();
+  const both=[...mem].filter(b=>ret.has(b));
+  const cards=[
+    {n:onlyMem.length,l:"Only from memory",b:onlyMem.join(", ")||"none"},
+    {n:onlyRet.length,l:"Only from web search",b:onlyRet.join(", ")||"none"},
+    {n:both.length,l:"Recommended in both",b:"the stable core"},
+  ];
+  cards.forEach(c=>box.appendChild(el("div","uni","<div class='n'>"+c.n+"</div><div class='l'>"+c.l+"</div><div class='b'>"+c.b+"</div>")));
+}
+
+function renderDomains(d){
+  const box=document.getElementById("domChart"); box.innerHTML="";
+  const top=d.domArr.slice(0,12);
+  const max=Math.max(1,...top.map(x=>x.q));
+  top.forEach(x=>{
+    const row=el("div","barrow");
+    row.appendChild(el("div","nm",x.domain));
+    const track=el("div","bartrack");
+    const fill=el("div","barfill"); fill.style.background="var(--retrieval)";
+    track.appendChild(fill); row.appendChild(track);
+    row.appendChild(el("div","barval",String(x.q)));
+    box.appendChild(row);
+    raf(()=>{ fill.style.width=(x.q/max*100)+"%"; });
+  });
+  const sk=document.getElementById("srcKpis"); sk.innerHTML="";
+  const totalCites=d.domArr.reduce((a,b)=>a+b.q,0);
+  const top3=d.domArr.slice(0,3).reduce((a,b)=>a+b.q,0);
+  const share=totalCites? Math.round(top3/totalCites*100):0;
+  sk.appendChild(el("div","uni","<div class='n'>"+share+"%</div><div class='l'>Citation concentration</div><div class='b'>of all citations went to just the top 3 sources</div>"));
+  sk.appendChild(el("div","uni","<div class='n'>2</div><div class='l'>Stages of selection</div><div class='b'>search pulls a wide pool, then the answer leans on a few</div>"));
+}
+
+const FACTORS=[
+  ["Entity clarity","How clearly a brand or product is defined across the web. Consistently named, well described entities are easier for a model to trust and surface."],
+  ["Answerable structure","Pages with direct answers, clear headings, and clean markup are easier to extract a citable passage from than long unstructured prose."],
+  ["Freshness","Live search weights recent content heavily. This is why searched answers named current shoe models while memory gave older ones."],
+  ["Mentions, not just links","Being talked about across reviews, forums, and video correlates with AI visibility more strongly than backlinks do. Presence beats link count."],
+  ["Trusted source memory","Some citations come from training familiarity rather than live search, so long established sites get cited even when they are not currently ranking."],
+  ["Engine by engine difference","Different engines cite very different sources for the same question, so visibility on one tells you little about another."],
+];
+function renderFactors(){
+  const box=document.getElementById("factors"); box.innerHTML="";
+  FACTORS.forEach(f=>box.appendChild(el("div","factor","<h4>"+f[0]+"</h4><p>"+f[1]+"</p>")));
+}
+
+function renderFilter(){
+  const box=document.getElementById("filter");
+  INTENTS.forEach(i=>{
+    const p=el("div","pill on",i.replace("_"," "));
+    p.onclick=()=>{
+      if(active.has(i)){ if(active.size>1){active.delete(i); p.classList.remove("on");} }
+      else { active.add(i); p.classList.add("on"); }
+      renderAll();
+    };
+    box.appendChild(p);
+  });
+}
+
+function renderAll(){
+  const d=compute();
+  renderKpis(d); renderCompare(d); renderGap(d); renderHeat(d); renderUniverse(d); renderDomains(d);
+}
+
+renderFilter();
+renderFactors();
+renderAll();
+
+const obs=new IntersectionObserver(es=>es.forEach(e=>{ if(e.isIntersecting) e.target.classList.add("in"); }),{threshold:.12});
+document.querySelectorAll("section").forEach(s=>obs.observe(s));
+
+const links=[...document.querySelectorAll(".nav-links a")];
+const navObs=new IntersectionObserver(es=>es.forEach(e=>{
+  if(e.isIntersecting){ links.forEach(l=>l.classList.toggle("active", l.getAttribute("href")==="#"+e.target.id)); }
+}),{rootMargin:"-40% 0px -55% 0px"});
+document.querySelectorAll("section").forEach(s=>navObs.observe(s));
+</script>
+</body>
+</html>
