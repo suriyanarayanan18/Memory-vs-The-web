@@ -6,7 +6,7 @@ What an AI recommends from memory is not what it recommends from the web. This i
 
 Thirty real buyer questions were each asked two ways: once with the model answering from training memory (no internet), and once with live web search on. Then I measured which brands showed up and which sources got cited.
 
-**Live site:** _add your Vercel link here_
+**Live site:** https://memory-vs-the-web.vercel.app/
 
 ## What I found
 
